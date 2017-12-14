@@ -1,6 +1,6 @@
 {
   "name": "get-keycloak-public-key-with-agent",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Fetches the openid-connect PEM public key for a specific KID for validating JWT provided by Keycloak.",
   "keywords": [
     "keycloak",
