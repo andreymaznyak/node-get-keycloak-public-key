@@ -4,7 +4,7 @@ const urlLib = require('url');
 const BEGIN_KEY = '-----BEGIN RSA PUBLIC KEY-----\n';
 const END_KEY = '\n-----END RSA PUBLIC KEY-----\n';
 
-const expireTime = 1000 * 60 * 60 * 24; // time for expire request
+let expireTime = 86400000; // time for expire request
 /*
 * example_url: {
 *    time: 500,
@@ -13,7 +13,13 @@ const expireTime = 1000 * 60 * 60 * 24; // time for expire request
 **/
 const responseCache = {};
 
-module.exports = function KeycloakPublicKeyFetcher(url, realm, agent = null) {
+module.exports = function KeycloakPublicKeyFetcher(
+  url,
+  realm,
+  agent = null, // Fetch agentFn for requests () => agent
+  expire = 86400000 // time for expire request
+) {
+  expireTime = expire;
   console.log('req agent:', agent === null);
   const certsUrl = realm
     ? `${url}/auth/realms/${realm}/protocol/openid-connect/certs`
