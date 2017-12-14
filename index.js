@@ -20,7 +20,6 @@ module.exports = function KeycloakPublicKeyFetcher(
   expire = 86400000 // time for expire request
 ) {
   expireTime = expire;
-  console.log('req agent:', agent === null);
   const certsUrl = realm
     ? `${url}/auth/realms/${realm}/protocol/openid-connect/certs`
     : url;
@@ -51,10 +50,8 @@ function getJson(url, reqAgent, useCache = true) {
     !!responseCache[url] &&
     Date.now() - responseCache[url].time < expireTime
   ) {
-    console.log('use cache');
     return Promise.resolve(responseCache[url].result);
   } else {
-    console.log('fetch new request');
     return new Promise((resolve, reject) => {
       const options = urlLib.parse(url);
       if (reqAgent !== null) {
