@@ -70,7 +70,7 @@ function getJson(url, reqAgent, useCache = true) {
           parse(res)
             .then(result => {
               responseCache[url] = {
-                time: new Date().getTime(),
+                time: Date.now(),
                 result
               };
               resolve(result);
