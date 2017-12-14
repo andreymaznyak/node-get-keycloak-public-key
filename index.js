@@ -4,6 +4,15 @@ const urlLib = require('url');
 const BEGIN_KEY = '-----BEGIN RSA PUBLIC KEY-----\n';
 const END_KEY = '\n-----END RSA PUBLIC KEY-----\n';
 
+const expireTime = 1000 * 60 * 60 * 24; // time for expire request
+/*
+* example_url: {
+*    time: 500,
+*    value: null // response
+* }
+**/
+const responseCache = {};
+
 module.exports = function KeycloakPublicKeyFetcher(url, realm, agent = null) {
   console.log('req agent:', agent === null);
   const certsUrl = realm
@@ -24,33 +33,55 @@ async function fetch(url, kid, agent) {
   return getPublicKey(key.n, key.e);
 }
 
-function getJson(url, reqAgent) {
-  return new Promise((resolve, reject) => {
-    const options = urlLib.parse(url);
-    if (reqAgent !== null) {
-      options.agent = reqAgent;
-    }
-    const agent = url.startsWith('https') ? https : http;
-    agent
-      .get(options, res => {
-        if (!valid(res)) {
-          res.resume();
-          reject(
-            new Error(
-              `Status: ${res.statusCode}, Content-type: ${
-                res.headers['content-type']
-              }`
-            )
-          );
-        }
-        parse(res)
-          .then(result => resolve(result))
-          .catch(error => reject(error));
-      })
-      .on('error', e => {
-        reject(e);
-      });
-  });
+/**
+ *
+ * @param {*} url
+ * @param {*} reqAgent Function for fetch agent
+ * @param useCache using cahce for requests
+ */
+function getJson(url, reqAgent, useCache = true) {
+  if (
+    useCache &&
+    !!responseCache[url] &&
+    newDate().getTime() - responseCache[url].time < expireTime
+  ) {
+    console.log('use cache');
+    return Promise.resolve(responseCache[url].result);
+  } else {
+    console.log('fetch new request');
+    return new Promise((resolve, reject) => {
+      const options = urlLib.parse(url);
+      if (reqAgent !== null) {
+        options.agent = reqAgent();
+      }
+      const agent = url.startsWith('https') ? https : http;
+      agent
+        .get(options, res => {
+          if (!valid(res)) {
+            res.resume();
+            reject(
+              new Error(
+                `Status: ${res.statusCode}, Content-type: ${
+                  res.headers['content-type']
+                }`
+              )
+            );
+          }
+          parse(res)
+            .then(result => {
+              responseCache[url] = {
+                time: new Date().getTime(),
+                result
+              };
+              resolve(result);
+            })
+            .catch(error => reject(error));
+        })
+        .on('error', e => {
+          reject(e);
+        });
+    });
+  }
 }
 
 function valid(response) {
