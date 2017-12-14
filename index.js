@@ -43,7 +43,7 @@ function getJson(url, reqAgent, useCache = true) {
   if (
     useCache &&
     !!responseCache[url] &&
-    newDate().getTime() - responseCache[url].time < expireTime
+    Date.now() - responseCache[url].time < expireTime
   ) {
     console.log('use cache');
     return Promise.resolve(responseCache[url].result);
