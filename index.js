@@ -4,32 +4,36 @@ const urlLib = require('url');
 const BEGIN_KEY = '-----BEGIN RSA PUBLIC KEY-----\n';
 const END_KEY = '\n-----END RSA PUBLIC KEY-----\n';
 
-let expireTime = 86400000; // time for expire request
-/*
-* example_url: {
-*    time: 500,
-*    value: null // response
-* }
-**/
-const responseCache = {};
-
 module.exports = function KeycloakPublicKeyFetcher(
   url,
   realm,
   agent = null, // Fetch agentFn for requests () => agent
   expire = 86400000 // time for expire request
 ) {
-  expireTime = expire;
+  /*
+  * Cahced response object
+  * @type: 
+  * [url: string]: {
+  *    time: number,
+  *    value: null | any // response
+  * }
+  **/
+  const cache = {};
   const certsUrl = realm
     ? `${url}/auth/realms/${realm}/protocol/openid-connect/certs`
     : url;
   return {
-    fetch: kid => fetch(certsUrl, kid, agent)
+    fetch: kid => fetch(certsUrl, kid, { agent, expire, cache }),
+    getCache: () => cache
   };
 };
 
-async function fetch(url, kid, agent) {
-  const response = await getJson(url, agent);
+async function fetch(
+  url,
+  kid,
+  options = { agent: null, expire: 0, cache: {} }
+) {
+  const response = await getJson(url, options);
   const key = getKey(response, kid);
   if (!key) {
     throw new Error(`Can't find key for kid "${kid}" in response.`);
@@ -41,25 +45,26 @@ async function fetch(url, kid, agent) {
 /**
  *
  * @param {*} url
- * @param {*} reqAgent Function for fetch agent
+ * @param {*} options options for fetch request
  * @param useCache using cahce for requests
  */
-function getJson(url, reqAgent, useCache = true) {
+function getJson(url, options) {
+  const cachedValue = options.cache[url];
   if (
-    useCache &&
-    !!responseCache[url] &&
-    Date.now() - responseCache[url].time < expireTime
+    options.expire > 0 &&
+    cachedValue &&
+    Date.now() - cachedValue.time < options.expire
   ) {
-    return Promise.resolve(responseCache[url].result);
+    return Promise.resolve(cachedValue.result);
   } else {
     return new Promise((resolve, reject) => {
-      const options = urlLib.parse(url);
-      if (reqAgent !== null) {
-        options.agent = reqAgent();
+      const urlOptions = urlLib.parse(url);
+      if (options.agent instanceof Function) {
+        options.agent = options.agent();
       }
       const agent = url.startsWith('https') ? https : http;
       agent
-        .get(options, res => {
+        .get(urlOptions, res => {
           if (!valid(res)) {
             res.resume();
             reject(
@@ -72,10 +77,12 @@ function getJson(url, reqAgent, useCache = true) {
           }
           parse(res)
             .then(result => {
-              responseCache[url] = {
-                time: Date.now(),
-                result
-              };
+              if (options.expire > 0) {
+                options.cache[url] = {
+                  time: Date.now(),
+                  result
+                };
+              }
               resolve(result);
             })
             .catch(error => reject(error));
@@ -140,9 +147,9 @@ function getPublicKey(modulus, exponent) {
   const part = [mod, exp, encModLen, encExpLen]
     .map(n => n.length / 2)
     .reduce((a, b) => a + b);
-  const bufferSource = `30${encodeLenght(part + 2)}02${encModLen}${mod}02${
-    encExpLen
-  }${exp}`;
+  const bufferSource = `30${encodeLenght(
+    part + 2
+  )}02${encModLen}${mod}02${encExpLen}${exp}`;
   const pubkey = Buffer.from(bufferSource, 'hex').toString('base64');
   return BEGIN_KEY + pubkey.match(/.{1,64}/g).join('\n') + END_KEY;
 }
