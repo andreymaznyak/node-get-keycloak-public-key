@@ -8,7 +8,7 @@ module.exports = function KeycloakPublicKeyFetcher(
   url,
   realm,
   agent = null, // Fetch agentFn for requests () => agent
-  expire = 86400000 // time for expire request
+  expire = 0 // time for expire request
 ) {
   /*
   * Cahced response object
